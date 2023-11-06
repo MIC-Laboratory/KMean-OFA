@@ -32,7 +32,7 @@ class OFAResNets(ResNets):
         self.depth_list.sort()
         self.expand_ratio_list.sort()
         self.width_mult_list.sort()
-
+        self.ResNet101_base_depth = [2, 2, 4, 2]
         input_channel = [
             make_divisible(64 * width_mult, MyNetwork.CHANNEL_DIVISIBLE)
             for width_mult in self.width_mult_list
@@ -50,7 +50,7 @@ class OFAResNets(ResNets):
             ]
 
         n_block_list = [
-            base_depth + max(self.depth_list) for base_depth in ResNets.BASE_DEPTH_LIST
+            base_depth + max(self.depth_list) for base_depth in self.ResNet101_base_depth
         ]
         stride_list = [1, 2, 2, 2]
 
@@ -207,9 +207,9 @@ class OFAResNets(ResNets):
         )
 
     def set_active_subnet(self, d=None, e=None, w=None, **kwargs):
-        depth = val2list(d, len(ResNets.BASE_DEPTH_LIST) + 1)
+        depth = val2list(d, len(self.ResNet101_base_depth) + 1)
         expand_ratio = val2list(e, len(self.blocks))
-        width_mult = val2list(w, len(ResNets.BASE_DEPTH_LIST) + 2)
+        width_mult = val2list(w, len(self.ResNet101_base_depth) + 2)
 
         for block, e in zip(self.blocks, expand_ratio):
             if e is not None:
@@ -245,7 +245,7 @@ class OFAResNets(ResNets):
 
         # sample depth
         depth_setting = [random.choice([max(self.depth_list), min(self.depth_list)])]
-        for stage_id in range(len(ResNets.BASE_DEPTH_LIST)):
+        for stage_id in range(len(self.ResNet101_base_depth)):
             depth_setting.append(random.choice(self.depth_list))
 
         # sample width_mult

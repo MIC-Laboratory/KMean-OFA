@@ -13,7 +13,7 @@ import torch
 from ofa.imagenet_classification.elastic_nn.modules.dynamic_op import (
     DynamicSeparableConv2d,
 )
-from ofa.imagenet_classification.elastic_nn.networks import OFAMobileNetV3
+from ofa.imagenet_classification.elastic_nn.networks import OFAMobileNetV3,OFAResNets
 from ofa.imagenet_classification.run_manager import DistributedImageNetRunConfig
 from ofa.imagenet_classification.networks import MobileNetV3Large
 from ofa.imagenet_classification.run_manager.distributed_run_manager import (
@@ -33,6 +33,16 @@ parser.add_argument(
         "kernel",
         "depth",
         "expand",
+    ],
+)
+parser.add_argument(
+    "--net",
+    type=str,
+    default="ResNet",
+    choices=[
+        "ResNet",
+        "MB2",
+        "MB3",
     ],
 )
 parser.add_argument("--phase", type=int, default=1, choices=[1, 2])
@@ -111,7 +121,7 @@ args.print_frequency = 10
 args.n_worker = 8
 args.resize_scale = 0.08
 args.distort_color = "tf"
-args.image_size = "128,160,192,224"
+args.image_size = "32"
 args.continuous_size = True
 args.not_sync_distributed_image_size = False
 
@@ -136,11 +146,7 @@ if __name__ == "__main__":
     # Pin GPU to be used to process local rank (one GPU per process)
     torch.cuda.set_device(hvd.local_rank())
 
-    args.teacher_path = download_url(
-        "https://raw.githubusercontent.com/han-cai/files/master/ofa/ofa_checkpoints/ofa_D4_E6_K7",
-        model_dir=".torch/ofa_checkpoints/%d" % hvd.rank(),
-    )
-
+    args.teacher_path = "weights/Model@ResNet101_ACC@79.89.pt"
     num_gpus = hvd.size()
 
     torch.manual_seed(args.manual_seed)
@@ -193,18 +199,38 @@ if __name__ == "__main__":
         if len(args.width_mult_list) == 1
         else args.width_mult_list
     )
-    net = OFAMobileNetV3(
+    if (args.net == 'ResNet'):
+        net = OFAResNets(
         n_classes=run_config.data_provider.n_classes,
         bn_param=(args.bn_momentum, args.bn_eps),
         dropout_rate=args.dropout,
-        base_stage_width=args.base_stage_width,
-        width_mult=args.width_mult_list,
-        ks_list=args.ks_list,
-        expand_ratio_list=args.expand_list,
         depth_list=args.depth_list,
+        expand_ratio_list=args.expand_list,
+        width_mult=args.width_mult_list,
+               
     )
-    # teacher model
-    if args.kd_ratio > 0:
+        args.teacher_model = OFAResNets(
+                n_classes=run_config.data_provider.n_classes,
+                bn_param=(args.bn_momentum, args.bn_eps),
+                dropout_rate=args.dropout,
+                depth_list=max(args.depth_list),
+                expand_ratio_list=max(args.expand_list),
+                width_mult=args.width_mult_list,
+            )
+        args.teacher_model.cuda()
+    elif (args.net == 'MB3'):
+        net = OFAMobileNetV3(
+            n_classes=run_config.data_provider.n_classes,
+            bn_param=(args.bn_momentum, args.bn_eps),
+            dropout_rate=args.dropout,
+            base_stage_width=args.base_stage_width,
+            width_mult=args.width_mult_list,
+            ks_list=args.ks_list,
+            expand_ratio_list=args.expand_list,
+            depth_list=args.depth_list,
+        )
+        # teacher model
+        if args.kd_ratio > 0:
         args.teacher_model = MobileNetV3Large(
             n_classes=run_config.data_provider.n_classes,
             bn_param=(args.bn_momentum, args.bn_eps),
@@ -215,6 +241,9 @@ if __name__ == "__main__":
             depth_param=4,
         )
         args.teacher_model.cuda()
+    
+    
+    
 
     """ Distributed RunManager """
     # Horovod: (optional) compression algorithm.
@@ -253,7 +282,7 @@ if __name__ == "__main__":
     }
     if args.task == "kernel":
         validate_func_dict["ks_list"] = sorted(args.ks_list)
-        if distributed_run_manager.start_epoch == 0:
+        if distributed_run_manager.start_epoch == 0 and args.net != "ResNet":
             args.ofa_checkpoint_path = download_url(
                 "https://raw.githubusercontent.com/han-cai/files/master/ofa/ofa_checkpoints/ofa_D4_E6_K7",
                 model_dir=".torch/ofa_checkpoints/%d" % hvd.rank(),

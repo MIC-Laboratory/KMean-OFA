@@ -113,3 +113,6 @@ venv.bak/
 *.xml
 *.iml
 /bash/distributed_imagenet.sh
+weights/
+*data/
+Experiment_data/*
