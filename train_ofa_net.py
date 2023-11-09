@@ -231,16 +231,16 @@ if __name__ == "__main__":
         )
         # teacher model
         if args.kd_ratio > 0:
-        args.teacher_model = MobileNetV3Large(
-            n_classes=run_config.data_provider.n_classes,
-            bn_param=(args.bn_momentum, args.bn_eps),
-            dropout_rate=0,
-            width_mult=1.0,
-            ks=7,
-            expand_ratio=6,
-            depth_param=4,
-        )
-        args.teacher_model.cuda()
+            args.teacher_model = MobileNetV3Large(
+                n_classes=run_config.data_provider.n_classes,
+                bn_param=(args.bn_momentum, args.bn_eps),
+                dropout_rate=0,
+                width_mult=1.0,
+                ks=7,
+                expand_ratio=6,
+                depth_param=4,
+            )
+            args.teacher_model.cuda()
     
     
     
