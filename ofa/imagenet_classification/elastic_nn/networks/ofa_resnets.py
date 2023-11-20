@@ -34,7 +34,7 @@ class OFAResNets(ResNets):
         self.width_mult_list.sort()
         self.ResNet101_base_depth = [3, 4, 23, 3]
         self.ResNet101_stage_width_list = [64, 128, 256, 512]
-        self.ks = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 2, 2, 2,216, 143, 200]
+        self.ks = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 216, 143, 200]
         input_channel = [
             make_divisible(64 * width_mult, MyNetwork.CHANNEL_DIVISIBLE)
             for width_mult in self.width_mult_list
@@ -51,41 +51,23 @@ class OFAResNets(ResNets):
                 for width_mult in self.width_mult_list
             ]
 
-        n_block_list = [
-            base_depth + max(self.depth_list) for base_depth in self.ResNet101_base_depth
-        ]
+        n_block_list = []
+        for base_depth in self.ResNet101_base_depth:
+            n_block_list.append(base_depth * max(self.depth_list))
+
         stride_list = [1, 2, 2, 2]
 
         # build input stem
-        input_stem = [
-            DynamicConvLayer(
-                val2list(3),
-                mid_input_channel,
-                3,
-                stride=1,
-                use_bn=True,
-                act_func="relu",
-            ),
-            ResidualBlock(
-                DynamicConvLayer(
-                    mid_input_channel,
-                    mid_input_channel,
-                    3,
-                    stride=1,
-                    use_bn=True,
-                    act_func="relu",
-                ),
-                IdentityLayer(mid_input_channel, mid_input_channel),
-            ),
-            DynamicConvLayer(
-                mid_input_channel,
-                input_channel,
-                3,
-                stride=1,
-                use_bn=True,
-                act_func="relu",
-            ),
-        ]
+        input_stem = DynamicConvLayer(
+                        val2list(3),
+                        input_channel,
+                        3,
+                        stride=1,
+                        use_bn=True,
+                        act_func="relu",
+                    ),
+            
+        
 
         # blocks
         blocks = []
@@ -102,7 +84,8 @@ class OFAResNets(ResNets):
                     downsample_mode="conv",
                 )
                 blocks.append(bottleneck_block)
-                input_channel = width
+                
+                input_channel = [width[0]*4]
         # classifier
         classifier = DynamicLinearLayer(
             input_channel, n_classes, dropout_rate=dropout_rate
@@ -135,7 +118,6 @@ class OFAResNets(ResNets):
                 pass
             else:
                 x = layer(x)
-        x = self.max_pooling(x)
         for stage_id, block_idx in enumerate(self.grouped_block_index):
             depth_param = self.runtime_depth[stage_id]
             active_idx = block_idx[: len(block_idx) - depth_param]
@@ -203,17 +185,6 @@ class OFAResNets(ResNets):
             if e is not None:
                 block.active_expand_ratio = e
 
-        if width_mult[0] is not None:
-            self.input_stem[1].conv.active_out_channel = self.input_stem[
-                0
-            ].active_out_channel = self.input_stem[0].out_channel_list[width_mult[0]]
-        if width_mult[1] is not None:
-            self.input_stem[2].active_out_channel = self.input_stem[2].out_channel_list[
-                width_mult[1]
-            ]
-
-        if depth[0] is not None:
-            self.input_stem_skipping = depth[0] != max(self.depth_list)
         for stage_id, (block_idx, d, w) in enumerate(
             zip(self.grouped_block_index, depth[1:], width_mult[2:])
         ):
@@ -239,7 +210,7 @@ class OFAResNets(ResNets):
         # sample width_mult
         width_mult_setting = [
             random.choice(list(range(len(self.input_stem[0].out_channel_list)))),
-            random.choice(list(range(len(self.input_stem[2].out_channel_list)))),
+            random.choice(list(range(len(self.input_stem[0].out_channel_list)))),
         ]
         for stage_id, block_idx in enumerate(self.grouped_block_index):
             stage_first_block = self.blocks[block_idx[0]]
@@ -252,25 +223,25 @@ class OFAResNets(ResNets):
         return arch_config
 
     def get_active_subnet(self, preserve_weight=True):
-        input_stem = [self.input_stem[0].get_active_subnet(3, preserve_weight)]
-        if self.input_stem_skipping <= 0:
-            input_stem.append(
-                ResidualBlock(
-                    self.input_stem[1].conv.get_active_subnet(
-                        self.input_stem[0].active_out_channel, preserve_weight
-                    ),
-                    IdentityLayer(
-                        self.input_stem[0].active_out_channel,
-                        self.input_stem[0].active_out_channel,
-                    ),
-                )
-            )
-        input_stem.append(
-            self.input_stem[2].get_active_subnet(
-                self.input_stem[0].active_out_channel, preserve_weight
-            )
-        )
-        input_channel = self.input_stem[2].active_out_channel
+        # input_stem = [self.input_stem[0].get_active_subnet(3, preserve_weight)]
+        # if self.input_stem_skipping <= 0:
+        #     input_stem.append(
+        #         ResidualBlock(
+        #             self.input_stem[1].conv.get_active_subnet(
+        #                 self.input_stem[0].active_out_channel, preserve_weight
+        #             ),
+        #             IdentityLayer(
+        #                 self.input_stem[0].active_out_channel,
+        #                 self.input_stem[0].active_out_channel,
+        #             ),
+        #         )
+        #     )
+        # input_stem.append(
+        #     self.input_stem[2].get_active_subnet(
+        #         self.input_stem[0].active_out_channel, preserve_weight
+        #     )
+        # )
+        input_channel = self.input_stem[0].active_out_channel
 
         blocks = []
         for stage_id, block_idx in enumerate(self.grouped_block_index):
@@ -288,26 +259,26 @@ class OFAResNets(ResNets):
         return subnet
 
     def get_active_net_config(self):
-        input_stem_config = [self.input_stem[0].get_active_subnet_config(3)]
-        if self.input_stem_skipping <= 0:
-            input_stem_config.append(
-                {
-                    "name": ResidualBlock.__name__,
-                    "conv": self.input_stem[1].conv.get_active_subnet_config(
-                        self.input_stem[0].active_out_channel
-                    ),
-                    "shortcut": IdentityLayer(
-                        self.input_stem[0].active_out_channel,
-                        self.input_stem[0].active_out_channel,
-                    ),
-                }
-            )
-        input_stem_config.append(
-            self.input_stem[2].get_active_subnet_config(
-                self.input_stem[0].active_out_channel
-            )
-        )
-        input_channel = self.input_stem[2].active_out_channel
+        # input_stem_config = [self.input_stem[0].get_active_subnet_config(3)]
+        # if self.input_stem_skipping <= 0:
+        #     input_stem_config.append(
+        #         {
+        #             "name": ResidualBlock.__name__,
+        #             "conv": self.input_stem[1].conv.get_active_subnet_config(
+        #                 self.input_stem[0].active_out_channel
+        #             ),
+        #             "shortcut": IdentityLayer(
+        #                 self.input_stem[0].active_out_channel,
+        #                 self.input_stem[0].active_out_channel,
+        #             ),
+        #         }
+        #     )
+        # input_stem_config.append(
+        #     self.input_stem[2].get_active_subnet_config(
+        #         self.input_stem[0].active_out_channel
+        #     )
+        # )
+        input_channel = self.input_stem[0].active_out_channel
 
         blocks_config = []
         for stage_id, block_idx in enumerate(self.grouped_block_index):

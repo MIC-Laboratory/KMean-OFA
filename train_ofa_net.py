@@ -95,7 +95,7 @@ elif args.task == "expand":
         args.base_lr = 7.5e-3
         args.warmup_epochs = 5
         args.warmup_lr = -1
-        args.ks_list = "3,5,7"
+        args.ks_list = "3"
         args.expand_list = "0.5,0.6,1"
         args.depth_list = "1"
 else:
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     # Pin GPU to be used to process local rank (one GPU per process)
     torch.cuda.set_device(hvd.local_rank())
 
-    args.teacher_path = "weights/Cifar100/ResNet-OFA/Model@ResNet-OFA_ACC@70.19.pt"
+    args.teacher_path = "weights/Cifar100/ResNet-OFA/ResNet101OFA_ACC@79.89.pt"
     num_gpus = hvd.size()
 
     torch.manual_seed(args.manual_seed)
@@ -334,7 +334,7 @@ if __name__ == "__main__":
         )
 
         if args.phase == 1:
-            args.ofa_checkpoint_path = "weights/Cifar100/ResNet-OFA/Model@ResNet-OFA_ACC@70.19.pt"
+            args.ofa_checkpoint_path = "weights/Cifar100/ResNet-OFA/ResNet101OFA_ACC@79.89.pt"
         else:
             args.ofa_checkpoint_path = "exp/kernel_depth2kernel_depth_width/phase1/checkpoint/model_best.pth.tar"
         train_elastic_expand(train, distributed_run_manager, args, validate_func_dict)

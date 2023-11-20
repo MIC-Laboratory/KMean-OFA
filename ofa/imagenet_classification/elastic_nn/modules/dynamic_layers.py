@@ -549,6 +549,12 @@ class DynamicResNetBottleneckBlock(MyModule):
             round(max(self.out_channel_list) * max(self.expand_ratio_list)),
             MyNetwork.CHANNEL_DIVISIBLE,
         )
+        # max_middle_channel = max(self.out_channel_list)
+        # self.max_middle_channel = val2list(max_middle_channel)
+        # self.out_channel_list = [make_divisible(
+        #     round(max(self.out_channel_list) * max(self.expand_ratio_list)),
+        #     MyNetwork.CHANNEL_DIVISIBLE,
+        # )]
 
         self.conv1 = nn.Sequential(
             OrderedDict(
@@ -583,16 +589,16 @@ class DynamicResNetBottleneckBlock(MyModule):
                 [
                     (
                         "conv",
-                        DynamicConv2d(max_middle_channel, max(self.out_channel_list)),
+                        DynamicConv2d(max_middle_channel, max(self.out_channel_list)*4),
                     ),
-                    ("bn", DynamicBatchNorm2d(max(self.out_channel_list))),
+                    ("bn", DynamicBatchNorm2d(max(self.out_channel_list)*4)),
                 ]
             )
         )
 
-        if self.stride == 1 and self.in_channel_list == self.out_channel_list:
+        if self.stride == 1 and max(self.in_channel_list) == max(self.out_channel_list)*4:
             self.downsample = IdentityLayer(
-                max(self.in_channel_list), max(self.out_channel_list)
+                max(self.in_channel_list), max(self.out_channel_list)*4
             )
         elif self.downsample_mode == "conv":
             self.downsample = nn.Sequential(
@@ -602,11 +608,11 @@ class DynamicResNetBottleneckBlock(MyModule):
                             "conv",
                             DynamicConv2d(
                                 max(self.in_channel_list),
-                                max(self.out_channel_list),
+                                max(self.out_channel_list)*4,
                                 stride=stride,
                             ),
                         ),
-                        ("bn", DynamicBatchNorm2d(max(self.out_channel_list))),
+                        ("bn", DynamicBatchNorm2d(max(self.out_channel_list)*4)),
                     ]
                 )
             )
@@ -644,11 +650,11 @@ class DynamicResNetBottleneckBlock(MyModule):
     def forward(self, x):
         feature_dim = self.active_middle_channels
 
-        self.conv1.conv.active_out_channel = feature_dim
+        self.conv1.conv.active_out_channel = self.active_out_channel
         self.conv2.conv.active_out_channel = feature_dim
-        self.conv3.conv.active_out_channel = self.active_out_channel
+        self.conv3.conv.active_out_channel = max(self.out_channel_list)*4
         if not isinstance(self.downsample, IdentityLayer):
-            self.downsample.conv.active_out_channel = self.active_out_channel
+            self.downsample.conv.active_out_channel = max(self.out_channel_list)*4
 
         residual = self.downsample(x)
 
@@ -965,7 +971,7 @@ class DynamicResNetBottleneckBlock(MyModule):
         #         importance[left:right] += base
         #         base += 1e5
         #         right = left
-        sorted_idx = self.Kmean_L1norm(self.conv3.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
+        sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
         # sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
         self.conv3.conv.conv.weight.data = torch.index_select(
             self.conv3.conv.conv.weight.data, 1, sorted_idx
@@ -976,40 +982,40 @@ class DynamicResNetBottleneckBlock(MyModule):
         )
 
         # conv2 -> conv1
-        importance = torch.sum(
-            torch.abs(self.conv2.conv.conv.weight.data), dim=(0, 2, 3)
-        )
-        if isinstance(self.conv1.bn, DynamicGroupNorm):
-            channel_per_group = self.conv1.bn.channel_per_group
-            importance_chunks = torch.split(importance, channel_per_group)
-            for chunk in importance_chunks:
-                chunk.data.fill_(torch.mean(chunk))
-            importance = torch.cat(importance_chunks, dim=0)
-        if expand_ratio_stage > 0:
-            sorted_expand_list = copy.deepcopy(self.expand_ratio_list)
-            sorted_expand_list.sort(reverse=True)
-            target_width_list = [
-                make_divisible(
-                    round(max(self.out_channel_list) * expand),
-                    MyNetwork.CHANNEL_DIVISIBLE,
-                )
-                for expand in sorted_expand_list
-            ]
-            right = len(importance)
-            base = -len(target_width_list) * 1e5
-            for i in range(expand_ratio_stage + 1):
-                left = target_width_list[i]
-                importance[left:right] += base
-                base += 1e5
-                right = left
-        sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
-
-        self.conv2.conv.conv.weight.data = torch.index_select(
-            self.conv2.conv.conv.weight.data, 1, sorted_idx
-        )
-        adjust_bn_according_to_idx(self.conv1.bn.bn, sorted_idx)
-        self.conv1.conv.conv.weight.data = torch.index_select(
-            self.conv1.conv.conv.weight.data, 0, sorted_idx
-        )
+        # importance = torch.sum(
+        #     torch.abs(self.conv2.conv.conv.weight.data), dim=(0, 2, 3)
+        # )
+        # if isinstance(self.conv1.bn, DynamicGroupNorm):
+        #     channel_per_group = self.conv1.bn.channel_per_group
+        #     importance_chunks = torch.split(importance, channel_per_group)
+        #     for chunk in importance_chunks:
+        #         chunk.data.fill_(torch.mean(chunk))
+        #     importance = torch.cat(importance_chunks, dim=0)
+        # if expand_ratio_stage > 0:
+        #     sorted_expand_list = copy.deepcopy(self.expand_ratio_list)
+        #     sorted_expand_list.sort(reverse=True)
+        #     target_width_list = [
+        #         make_divisible(
+        #             round(max(self.out_channel_list) * expand),
+        #             MyNetwork.CHANNEL_DIVISIBLE,
+        #         )
+        #         for expand in sorted_expand_list
+        #     ]
+        #     right = len(importance)
+        #     base = -len(target_width_list) * 1e5
+        #     for i in range(expand_ratio_stage + 1):
+        #         left = target_width_list[i]
+        #         importance[left:right] += base
+        #         base += 1e5
+        #         right = left
+        # sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+        # sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
+        # self.conv2.conv.conv.weight.data = torch.index_select(
+        #     self.conv2.conv.conv.weight.data, 1, sorted_idx
+        # )
+        # adjust_bn_according_to_idx(self.conv1.bn.bn, sorted_idx)
+        # self.conv1.conv.conv.weight.data = torch.index_select(
+        #     self.conv1.conv.conv.weight.data, 0, sorted_idx
+        # )
 
         return None
