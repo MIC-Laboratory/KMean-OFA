@@ -116,3 +116,4 @@ venv.bak/
 weights/
 *data/
 Experiment_data/*
+exp*

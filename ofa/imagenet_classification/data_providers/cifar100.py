@@ -58,7 +58,7 @@ class Cifar100DataProvider(DataProvider):
             train_loader_class = MyDataLoader  # randomly sample image size for each batch of training image
         else:
             self.active_img_size = self.image_size
-            valid_transforms = self.build_valid_transform()
+            valid_transforms = self.build_valid_transform(self.active_img_size)
             train_loader_class = torch.utils.data.DataLoader
 
         train_dataset = self.train_dataset(self.build_train_transform())
@@ -150,7 +150,7 @@ class Cifar100DataProvider(DataProvider):
 
     @staticmethod
     def name():
-        return "imagenet"
+        return "cifar100"
 
     @property
     def data_shape(self):
@@ -193,9 +193,11 @@ class Cifar100DataProvider(DataProvider):
         )
 
     def build_train_transform(self, image_size=None, print_log=True):
-        crop = transforms.RandomCrop(image_size,padding=4),
+        if image_size is None:
+            image_size = self.active_img_size
+        crop = transforms.RandomCrop((image_size,image_size),padding=4),
             
-        train_transform = transforms.Compose(
+        train_transforms = transforms.Compose(
             [
             *crop,
             transforms.RandomHorizontalFlip(),
@@ -207,7 +209,9 @@ class Cifar100DataProvider(DataProvider):
         return train_transforms
 
     def build_valid_transform(self, image_size=None):
-        crop = transforms.RandomCrop(input_size,padding=4),
+        if image_size is None:
+            image_size = self.active_img_size
+        crop = transforms.RandomCrop((image_size,image_size),padding=4),
         return transforms.Compose([
             *crop,
             transforms.ToTensor(),

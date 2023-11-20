@@ -32,7 +32,9 @@ class OFAResNets(ResNets):
         self.depth_list.sort()
         self.expand_ratio_list.sort()
         self.width_mult_list.sort()
-        self.ResNet101_base_depth = [2, 2, 4, 2]
+        self.ResNet101_base_depth = [3, 4, 23, 3]
+        self.ResNet101_stage_width_list = [64, 128, 256, 512]
+        self.ks = [25, 12, 5, 16, 11, 26, 1, 24, 42, 7, 84, 17, 104, 18, 6, 31, 11, 114, 58, 23, 6, 94, 34, 76, 78, 28, 1, 39, 58, 25, 2, 2, 2,216, 143, 200]
         input_channel = [
             make_divisible(64 * width_mult, MyNetwork.CHANNEL_DIVISIBLE)
             for width_mult in self.width_mult_list
@@ -42,7 +44,7 @@ class OFAResNets(ResNets):
             for channel in input_channel
         ]
 
-        stage_width_list = ResNets.STAGE_WIDTH_LIST.copy()
+        stage_width_list = self.ResNet101_stage_width_list.copy()
         for i, width in enumerate(stage_width_list):
             stage_width_list[i] = [
                 make_divisible(width * width_mult, MyNetwork.CHANNEL_DIVISIBLE)
@@ -60,7 +62,7 @@ class OFAResNets(ResNets):
                 val2list(3),
                 mid_input_channel,
                 3,
-                stride=2,
+                stride=1,
                 use_bn=True,
                 act_func="relu",
             ),
@@ -97,7 +99,7 @@ class OFAResNets(ResNets):
                     kernel_size=3,
                     stride=stride,
                     act_func="relu",
-                    downsample_mode="avgpool_conv",
+                    downsample_mode="conv",
                 )
                 blocks.append(bottleneck_block)
                 input_channel = width
@@ -180,22 +182,8 @@ class OFAResNets(ResNets):
         raise ValueError("do not support this function")
 
     def load_state_dict(self, state_dict, **kwargs):
-        model_dict = self.state_dict()
-        for key in state_dict:
-            new_key = key
-            if new_key in model_dict:
-                pass
-            elif ".linear." in new_key:
-                new_key = new_key.replace(".linear.", ".linear.linear.")
-            elif "bn." in new_key:
-                new_key = new_key.replace("bn.", "bn.bn.")
-            elif "conv.weight" in new_key:
-                new_key = new_key.replace("conv.weight", "conv.conv.weight")
-            else:
-                raise ValueError(new_key)
-            assert new_key in model_dict, "%s" % new_key
-            model_dict[new_key] = state_dict[key]
-        super(OFAResNets, self).load_state_dict(model_dict)
+        
+        super(OFAResNets, self).load_state_dict(state_dict)
 
     """ set, sample and get active sub-networks """
 
@@ -342,5 +330,8 @@ class OFAResNets(ResNets):
     """ Width Related Methods """
 
     def re_organize_middle_weights(self, expand_ratio_stage=0):
-        for block in self.blocks:
-            block.re_organize_middle_weights(expand_ratio_stage)
+        for i,block in enumerate(self.blocks,0):
+            if i > len(self.ks) - 1:
+                block.re_organize_middle_weights(expand_ratio_stage)
+            else:
+                block.re_organize_middle_weights(expand_ratio_stage,self.ks[i])

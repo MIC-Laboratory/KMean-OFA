@@ -14,7 +14,7 @@ from ofa.imagenet_classification.elastic_nn.modules.dynamic_op import (
     DynamicSeparableConv2d,
 )
 from ofa.imagenet_classification.elastic_nn.networks import OFAMobileNetV3,OFAResNets
-from ofa.imagenet_classification.run_manager import DistributedImageNetRunConfig
+from ofa.imagenet_classification.run_manager import DistributedImageNetRunConfig,DistributedCifar100RunConfig
 from ofa.imagenet_classification.networks import MobileNetV3Large
 from ofa.imagenet_classification.run_manager.distributed_run_manager import (
     DistributedRunManager,
@@ -28,7 +28,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--task",
     type=str,
-    default="depth",
+    default="expand",
     choices=[
         "kernel",
         "depth",
@@ -47,6 +47,7 @@ parser.add_argument(
 )
 parser.add_argument("--phase", type=int, default=1, choices=[1, 2])
 parser.add_argument("--resume", action="store_true")
+parser.add_argument("--dataset", default="cifar100")
 
 args = parser.parse_args()
 if args.task == "kernel":
@@ -86,17 +87,17 @@ elif args.task == "expand":
         args.base_lr = 2.5e-3
         args.warmup_epochs = 0
         args.warmup_lr = -1
-        args.ks_list = "3,5,7"
-        args.expand_list = "4,6"
-        args.depth_list = "2,3,4"
+        args.ks_list = "3"
+        args.expand_list = "0.6,1"
+        args.depth_list = "1"
     else:
         args.n_epochs = 120
         args.base_lr = 7.5e-3
         args.warmup_epochs = 5
         args.warmup_lr = -1
         args.ks_list = "3,5,7"
-        args.expand_list = "3,4,6"
-        args.depth_list = "2,3,4"
+        args.expand_list = "0.5,0.6,1"
+        args.depth_list = "1"
 else:
     raise NotImplementedError
 args.manual_seed = 0
@@ -146,7 +147,7 @@ if __name__ == "__main__":
     # Pin GPU to be used to process local rank (one GPU per process)
     torch.cuda.set_device(hvd.local_rank())
 
-    args.teacher_path = "weights/Model@ResNet101_ACC@79.89.pt"
+    args.teacher_path = "weights/Cifar100/ResNet-OFA/Model@ResNet-OFA_ACC@70.19.pt"
     num_gpus = hvd.size()
 
     torch.manual_seed(args.manual_seed)
@@ -172,9 +173,14 @@ if __name__ == "__main__":
         args.warmup_lr = args.base_lr
     args.train_batch_size = args.base_batch_size
     args.test_batch_size = args.base_batch_size * 4
-    run_config = DistributedImageNetRunConfig(
-        **args.__dict__, num_replicas=num_gpus, rank=hvd.rank()
-    )
+    if args.dataset == "imagenet":
+        run_config = DistributedImageNetRunConfig(
+            **args.__dict__, num_replicas=num_gpus, rank=hvd.rank()
+        )
+    elif args.dataset == "cifar100":
+        run_config = DistributedCifar100RunConfig(
+            **args.__dict__, num_replicas=num_gpus, rank=hvd.rank()
+        )
 
     # print run config information
     if hvd.rank() == 0:
@@ -191,7 +197,7 @@ if __name__ == "__main__":
         float(width_mult) for width_mult in args.width_mult_list.split(",")
     ]
     args.ks_list = [int(ks) for ks in args.ks_list.split(",")]
-    args.expand_list = [int(e) for e in args.expand_list.split(",")]
+    args.expand_list = [float(e) for e in args.expand_list.split(",")]
     args.depth_list = [int(d) for d in args.depth_list.split(",")]
 
     args.width_mult_list = (
@@ -206,7 +212,7 @@ if __name__ == "__main__":
         dropout_rate=args.dropout,
         depth_list=args.depth_list,
         expand_ratio_list=args.expand_list,
-        width_mult=args.width_mult_list,
+        width_mult_list=args.width_mult_list,
                
     )
         args.teacher_model = OFAResNets(
@@ -215,7 +221,7 @@ if __name__ == "__main__":
                 dropout_rate=args.dropout,
                 depth_list=max(args.depth_list),
                 expand_ratio_list=max(args.expand_list),
-                width_mult=args.width_mult_list,
+                width_mult_list=args.width_mult_list,
             )
         args.teacher_model.cuda()
     elif (args.net == 'MB3'):
@@ -273,9 +279,9 @@ if __name__ == "__main__":
     )
 
     validate_func_dict = {
-        "image_size_list": {224}
+        "image_size_list": {32}
         if isinstance(args.image_size, int)
-        else sorted({160, 224}),
+        else sorted({32, 32}),
         "ks_list": sorted({min(args.ks_list), max(args.ks_list)}),
         "expand_ratio_list": sorted({min(args.expand_list), max(args.expand_list)}),
         "depth_list": sorted({min(net.depth_list), max(net.depth_list)}),
@@ -328,15 +334,9 @@ if __name__ == "__main__":
         )
 
         if args.phase == 1:
-            args.ofa_checkpoint_path = download_url(
-                "https://raw.githubusercontent.com/han-cai/files/master/ofa/ofa_checkpoints/ofa_D234_E6_K357",
-                model_dir=".torch/ofa_checkpoints/%d" % hvd.rank(),
-            )
+            args.ofa_checkpoint_path = "weights/Cifar100/ResNet-OFA/Model@ResNet-OFA_ACC@70.19.pt"
         else:
-            args.ofa_checkpoint_path = download_url(
-                "https://raw.githubusercontent.com/han-cai/files/master/ofa/ofa_checkpoints/ofa_D234_E46_K357",
-                model_dir=".torch/ofa_checkpoints/%d" % hvd.rank(),
-            )
+            args.ofa_checkpoint_path = "exp/kernel_depth2kernel_depth_width/phase1/checkpoint/model_best.pth.tar"
         train_elastic_expand(train, distributed_run_manager, args, validate_func_dict)
     else:
         raise NotImplementedError
