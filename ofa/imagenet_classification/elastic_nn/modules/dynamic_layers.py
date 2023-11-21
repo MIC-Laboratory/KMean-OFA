@@ -741,7 +741,7 @@ class DynamicResNetBottleneckBlock(MyModule):
 
         sub_layer.conv3.conv.weight.data.copy_(
             self.conv3.conv.get_active_filter(
-                self.active_out_channel, self.active_middle_channels
+                self.active_out_channel*4, self.active_middle_channels
             ).data
         )
         copy_bn(sub_layer.conv3.bn, self.conv3.bn.bn)
@@ -749,7 +749,7 @@ class DynamicResNetBottleneckBlock(MyModule):
         if not isinstance(self.downsample, IdentityLayer):
             sub_layer.downsample.conv.weight.data.copy_(
                 self.downsample.conv.get_active_filter(
-                    self.active_out_channel, in_channel
+                    self.active_out_channel*4, in_channel
                 ).data
             )
             copy_bn(sub_layer.downsample.bn, self.downsample.bn.bn)
@@ -760,7 +760,7 @@ class DynamicResNetBottleneckBlock(MyModule):
         return {
             "name": ResNetBottleneckBlock.__name__,
             "in_channels": in_channel,
-            "out_channels": self.active_out_channel,
+            "out_channels": self.active_out_channel*4,
             "kernel_size": self.kernel_size,
             "stride": self.stride,
             "expand_ratio": self.active_expand_ratio,

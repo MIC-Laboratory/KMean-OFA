@@ -223,7 +223,7 @@ class OFAResNets(ResNets):
         return arch_config
 
     def get_active_subnet(self, preserve_weight=True):
-        # input_stem = [self.input_stem[0].get_active_subnet(3, preserve_weight)]
+        input_stem = [self.input_stem[0].get_active_subnet(3, preserve_weight)]
         # if self.input_stem_skipping <= 0:
         #     input_stem.append(
         #         ResidualBlock(
@@ -251,7 +251,7 @@ class OFAResNets(ResNets):
                 blocks.append(
                     self.blocks[idx].get_active_subnet(input_channel, preserve_weight)
                 )
-                input_channel = self.blocks[idx].active_out_channel
+                input_channel = self.blocks[idx].active_out_channel*4
         classifier = self.classifier.get_active_subnet(input_channel, preserve_weight)
         subnet = ResNets(input_stem, blocks, classifier)
 

@@ -1,0 +1,8 @@
+[submodule "CNN_Pruning_Engine"]
+    path = CNN_Pruning_Engine
+    url = https://github.com/MIC-Laboratory/CNN-Pruning-Engine.git
+    branch = K-Mean-OFA
+[submodule "CNN_Training_Pytorch_Cifar"]
+    path = CNN_Training_Pytorch_Cifar
+    url = https://github.com/MIC-Laboratory/CNN-Training-Pytorch-Cifar.git
+    branch = K-Mean-OFA
