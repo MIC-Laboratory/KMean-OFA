@@ -92,9 +92,7 @@ class RunConfig:
     def train_loader(self):
         return self.data_provider.train
 
-    @property
-    def valid_loader(self):
-        return self.data_provider.valid
+
 
     @property
     def test_loader(self):
@@ -103,9 +101,7 @@ class RunConfig:
     def random_sub_train_loader(
         self, n_images, batch_size, num_worker=None, num_replicas=None, rank=None
     ):
-        return self.data_provider.build_sub_train_loader(
-            n_images, batch_size, num_worker, num_replicas, rank
-        )
+        return self.data_provider.train
 
     """ optimizer """
 

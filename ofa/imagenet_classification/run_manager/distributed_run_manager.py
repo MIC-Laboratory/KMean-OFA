@@ -271,13 +271,23 @@ class DistributedRunManager:
             if is_test:
                 data_loader = self.run_config.test_loader
             else:
-                data_loader = self.run_config.valid_loader
+                data_loader = self.run_config.test_loader
+
+       
+        # net = net.get_active_subnet()
+
+        # torch.save(net.state_dict(), "weights/full_model.pt")
+
+
 
         net.eval()
 
         losses = DistributedMetric("val_loss")
         metric_dict = self.get_metric_dict()
-
+        running_loss = 0.0
+        running_corrects = 0.0
+        total_samples = 0
+        topk = 1
         with torch.no_grad():
             with tqdm(
                 total=len(data_loader),
@@ -292,6 +302,7 @@ class DistributedRunManager:
                     # measure accuracy and record loss
                     losses.update(loss, images.size(0))
                     self.update_metric(metric_dict, output, labels)
+                    
                     t.set_postfix(
                         {
                             "loss": losses.avg.item(),

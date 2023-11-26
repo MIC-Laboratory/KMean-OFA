@@ -727,14 +727,14 @@ class DynamicResNetBottleneckBlock(MyModule):
         # copy weight from current layer
         sub_layer.conv1.conv.weight.data.copy_(
             self.conv1.conv.get_active_filter(
-                self.active_middle_channels, in_channel
+                self.active_out_channel, in_channel
             ).data
         )
         copy_bn(sub_layer.conv1.bn, self.conv1.bn.bn)
 
         sub_layer.conv2.conv.weight.data.copy_(
             self.conv2.conv.get_active_filter(
-                self.active_middle_channels, self.active_middle_channels
+                self.active_middle_channels, self.active_out_channel
             ).data
         )
         copy_bn(sub_layer.conv2.bn, self.conv2.bn.bn)
@@ -760,11 +760,11 @@ class DynamicResNetBottleneckBlock(MyModule):
         return {
             "name": ResNetBottleneckBlock.__name__,
             "in_channels": in_channel,
-            "out_channels": self.active_out_channel*4,
+            "out_channels": self.active_out_channel,
             "kernel_size": self.kernel_size,
             "stride": self.stride,
             "expand_ratio": self.active_expand_ratio,
-            "mid_channels": self.active_middle_channels,
+            "mid_channels": self.active_out_channel,
             "act_func": self.act_func,
             "groups": 1,
             "downsample_mode": self.downsample_mode,
@@ -945,34 +945,34 @@ class DynamicResNetBottleneckBlock(MyModule):
 
     def re_organize_middle_weights(self, expand_ratio_stage=0,k=2):
         # conv3 -> conv2
-        # importance = torch.sum(
-        #     torch.abs(self.conv3.conv.conv.weight.data), dim=(0, 2, 3)
-        # )
-        # if isinstance(self.conv2.bn, DynamicGroupNorm):
-        #     channel_per_group = self.conv2.bn.channel_per_group
-        #     importance_chunks = torch.split(importance, channel_per_group)
-        #     for chunk in importance_chunks:
-        #         chunk.data.fill_(torch.mean(chunk))
-        #     importance = torch.cat(importance_chunks, dim=0)
-        # if expand_ratio_stage > 0:
-        #     sorted_expand_list = copy.deepcopy(self.expand_ratio_list)
-        #     sorted_expand_list.sort(reverse=True)
-        #     target_width_list = [
-        #         make_divisible(
-        #             round(max(self.out_channel_list) * expand),
-        #             MyNetwork.CHANNEL_DIVISIBLE,
-        #         )
-        #         for expand in sorted_expand_list
-        #     ]
-        #     right = len(importance)
-        #     base = -len(target_width_list) * 1e5
-        #     for i in range(expand_ratio_stage + 1):
-        #         left = target_width_list[i]
-        #         importance[left:right] += base
-        #         base += 1e5
-        #         right = left
-        sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
-        # sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+        importance = torch.sum(
+            torch.abs(self.conv3.conv.conv.weight.data), dim=(0, 2, 3)
+        )
+        if isinstance(self.conv2.bn, DynamicGroupNorm):
+            channel_per_group = self.conv2.bn.channel_per_group
+            importance_chunks = torch.split(importance, channel_per_group)
+            for chunk in importance_chunks:
+                chunk.data.fill_(torch.mean(chunk))
+            importance = torch.cat(importance_chunks, dim=0)
+        if expand_ratio_stage > 0:
+            sorted_expand_list = copy.deepcopy(self.expand_ratio_list)
+            sorted_expand_list.sort(reverse=True)
+            target_width_list = [
+                make_divisible(
+                    round(max(self.out_channel_list) * expand),
+                    MyNetwork.CHANNEL_DIVISIBLE,
+                )
+                for expand in sorted_expand_list
+            ]
+            right = len(importance)
+            base = -len(target_width_list) * 1e5
+            for i in range(expand_ratio_stage + 1):
+                left = target_width_list[i]
+                importance[left:right] += base
+                base += 1e5
+                right = left
+        # sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
+        sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
         self.conv3.conv.conv.weight.data = torch.index_select(
             self.conv3.conv.conv.weight.data, 1, sorted_idx
         )

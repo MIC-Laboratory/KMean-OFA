@@ -672,10 +672,7 @@ class ResNetBottleneckBlock(MyModule):
 
         self.downsample_mode = downsample_mode
 
-        if self.mid_channels is None:
-            feature_dim = round(self.out_channels * self.expand_ratio)
-        else:
-            feature_dim = self.mid_channels
+        feature_dim = round(self.out_channels * self.expand_ratio)
 
         feature_dim = make_divisible(feature_dim, MyNetwork.CHANNEL_DIVISIBLE)
         self.mid_channels = feature_dim
@@ -686,9 +683,9 @@ class ResNetBottleneckBlock(MyModule):
                 [
                     (
                         "conv",
-                        nn.Conv2d(self.in_channels, feature_dim, 1, 1, 0, bias=False),
+                        nn.Conv2d(self.in_channels, self.out_channels, 1, 1, 0, bias=False),
                     ),
-                    ("bn", nn.BatchNorm2d(feature_dim)),
+                    ("bn", nn.BatchNorm2d(self.out_channels)),
                     ("act", build_activation(self.act_func, inplace=True)),
                 ]
             )
@@ -701,7 +698,7 @@ class ResNetBottleneckBlock(MyModule):
                     (
                         "conv",
                         nn.Conv2d(
-                            feature_dim,
+                            self.out_channels,
                             feature_dim,
                             kernel_size,
                             stride,
@@ -721,15 +718,15 @@ class ResNetBottleneckBlock(MyModule):
                 [
                     (
                         "conv",
-                        nn.Conv2d(feature_dim, self.out_channels, 1, 1, 0, bias=False),
+                        nn.Conv2d(feature_dim, self.out_channels*4, 1, 1, 0, bias=False),
                     ),
-                    ("bn", nn.BatchNorm2d(self.out_channels)),
+                    ("bn", nn.BatchNorm2d(self.out_channels*4)),
                 ]
             )
         )
 
-        if stride == 1 and in_channels == out_channels:
-            self.downsample = IdentityLayer(in_channels, out_channels)
+        if stride == 1 and in_channels == out_channels*4:
+            self.downsample = IdentityLayer(in_channels, out_channels*4)
         elif self.downsample_mode == "conv":
             self.downsample = nn.Sequential(
                 OrderedDict(
@@ -737,10 +734,10 @@ class ResNetBottleneckBlock(MyModule):
                         (
                             "conv",
                             nn.Conv2d(
-                                in_channels, out_channels, 1, stride, 0, bias=False
+                                in_channels, out_channels*4, 1, stride, 0, bias=False
                             ),
                         ),
-                        ("bn", nn.BatchNorm2d(out_channels)),
+                        ("bn", nn.BatchNorm2d(out_channels*4)),
                     ]
                 )
             )

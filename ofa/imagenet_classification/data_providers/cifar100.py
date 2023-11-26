@@ -68,7 +68,6 @@ class Cifar100DataProvider(DataProvider):
                 assert isinstance(valid_size, float) and 0 < valid_size < 1
                 valid_size = int(len(train_dataset) * valid_size)
 
-            valid_dataset = self.train_dataset(valid_transforms)
             train_indexes, valid_indexes = self.random_sample_valid_set(
                 len(train_dataset), valid_size
             )
@@ -77,16 +76,12 @@ class Cifar100DataProvider(DataProvider):
                 train_sampler = MyDistributedSampler(
                     train_dataset, num_replicas, rank, True, np.array(train_indexes)
                 )
-                valid_sampler = MyDistributedSampler(
-                    valid_dataset, num_replicas, rank, True, np.array(valid_indexes)
-                )
+
             else:
                 train_sampler = torch.utils.data.sampler.SubsetRandomSampler(
                     train_indexes
                 )
-                valid_sampler = torch.utils.data.sampler.SubsetRandomSampler(
-                    valid_indexes
-                )
+
 
             self.train = train_loader_class(
                 train_dataset,
@@ -95,13 +90,7 @@ class Cifar100DataProvider(DataProvider):
                 num_workers=n_worker,
                 pin_memory=True,
             )
-            self.valid = torch.utils.data.DataLoader(
-                valid_dataset,
-                batch_size=test_batch_size,
-                sampler=valid_sampler,
-                num_workers=n_worker,
-                pin_memory=True,
-            )
+
         else:
             if num_replicas is not None:
                 train_sampler = torch.utils.data.distributed.DistributedSampler(
@@ -122,7 +111,7 @@ class Cifar100DataProvider(DataProvider):
                     num_workers=n_worker,
                     pin_memory=True,
                 )
-            self.valid = None
+
 
         test_dataset = self.test_dataset(valid_transforms)
         if num_replicas is not None:
@@ -145,8 +134,7 @@ class Cifar100DataProvider(DataProvider):
                 pin_memory=True,
             )
 
-        if self.valid is None:
-            self.valid = self.test
+        
 
     @staticmethod
     def name():
@@ -225,50 +213,7 @@ class Cifar100DataProvider(DataProvider):
                 self.active_img_size
             ] = self.build_valid_transform()
         # change the transform of the valid and test set
-        self.valid.dataset.transform = self._valid_transform_dict[self.active_img_size]
+        
         self.test.dataset.transform = self._valid_transform_dict[self.active_img_size]
 
-    def build_sub_train_loader(
-        self, n_images, batch_size, num_worker=None, num_replicas=None, rank=None
-    ):
-        # used for resetting BN running statistics
-        if self.__dict__.get("sub_train_%d" % self.active_img_size, None) is None:
-            if num_worker is None:
-                num_worker = self.train.num_workers
-
-            n_samples = len(self.train.dataset)
-            g = torch.Generator()
-            g.manual_seed(DataProvider.SUB_SEED)
-            rand_indexes = torch.randperm(n_samples, generator=g).tolist()
-
-            new_train_dataset = self.train_dataset(
-                self.build_train_transform(
-                    image_size=self.active_img_size, print_log=False
-                )
-            )
-            chosen_indexes = rand_indexes[:n_images]
-            if num_replicas is not None:
-                sub_sampler = MyDistributedSampler(
-                    new_train_dataset,
-                    num_replicas,
-                    rank,
-                    True,
-                    np.array(chosen_indexes),
-                )
-            else:
-                sub_sampler = torch.utils.data.sampler.SubsetRandomSampler(
-                    chosen_indexes
-                )
-            sub_data_loader = torch.utils.data.DataLoader(
-                new_train_dataset,
-                batch_size=batch_size,
-                sampler=sub_sampler,
-                num_workers=num_worker,
-                pin_memory=True,
-            )
-            self.__dict__["sub_train_%d" % self.active_img_size] = []
-            for images, labels in sub_data_loader:
-                self.__dict__["sub_train_%d" % self.active_img_size].append(
-                    (images, labels)
-                )
-        return self.__dict__["sub_train_%d" % self.active_img_size]
+    

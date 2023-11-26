@@ -293,7 +293,7 @@ class OFAResNets(ResNets):
         return {
             "name": ResNets.__name__,
             "bn": self.get_bn_param(),
-            "input_stem": input_stem_config,
+            "input_stem": self.input_stem[0].get_active_subnet_config(self.input_stem[0].active_out_channel),
             "blocks": blocks_config,
             "classifier": classifier_config,
         }

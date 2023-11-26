@@ -243,12 +243,24 @@ class RunManager:
             net = self.net
         if not isinstance(net, nn.DataParallel):
             net = nn.DataParallel(net)
-
-        if data_loader is None:
-            data_loader = (
-                self.run_config.test_loader if is_test else self.run_config.valid_loader
-            )
-
+        # net = net.get_active_subnet(preserve_weight=True)
+        # if data_loader is None:
+        #     data_loader = (
+        #         self.run_config.test_loader if is_test else self.run_config.valid_loader
+        #     )
+        # data_loader = self.run_config.test_loader
+        dataset_mean = [0.5071, 0.4867, 0.4408]
+        dataset_std = [0.2675, 0.2565, 0.2761]
+        input_size = 32
+        test_transform = transforms.Compose([
+        transforms.RandomCrop(input_size,padding=4),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=dataset_mean,std=dataset_std)
+        ])
+        test_set = torchvision.datasets.CIFAR100(dataset_path,train=False,transform=test_transform,download=True)
+        test_loader = torch.utils.data.DataLoader(test_set, batch_size=128,
+                                         shuffle=False, num_workers=4)
+        data_loader = test_loader
         if train_mode:
             net.train()
         else:
@@ -450,7 +462,5 @@ class RunManager:
         if net is None:
             net = self.network
         if data_loader is None:
-            data_loader = self.run_config.random_sub_train_loader(
-                subset_size, subset_batch_size
-            )
+            data_loader = self.data_provider.train
         set_running_statistics(net, data_loader)
