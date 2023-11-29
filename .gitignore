@@ -117,3 +117,4 @@ weights/
 *data/
 Experiment_data/*
 exp*
+*_exp_*/*

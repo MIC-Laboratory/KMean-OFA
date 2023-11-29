@@ -140,7 +140,7 @@ class DynamicMBConvLayer(MyModule):
         in_channel_list,
         out_channel_list,
         kernel_size_list=3,
-        expand_ratio_list=6,
+        expand_ratio_list=1,
         stride=1,
         act_func="relu6",
         use_se=False,
@@ -162,7 +162,8 @@ class DynamicMBConvLayer(MyModule):
             round(max(self.in_channel_list) * max(self.expand_ratio_list)),
             MyNetwork.CHANNEL_DIVISIBLE,
         )
-        if max(self.expand_ratio_list) == 1:
+        # Display this if, always go to else
+        if False and max(self.expand_ratio_list) == 1:
             self.inverted_bottleneck = None
         else:
             self.inverted_bottleneck = nn.Sequential(
@@ -971,8 +972,9 @@ class DynamicResNetBottleneckBlock(MyModule):
                 importance[left:right] += base
                 base += 1e5
                 right = left
-        # sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
         sorted_importance, sorted_idx = torch.sort(importance, dim=0, descending=True)
+        # sorted_idx = self.Kmean_L1norm(self.conv2.conv.conv.weight.data.clone().cpu().detach().numpy(),k)
+        
         self.conv3.conv.conv.weight.data = torch.index_select(
             self.conv3.conv.conv.weight.data, 1, sorted_idx
         )

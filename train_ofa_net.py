@@ -337,6 +337,7 @@ if __name__ == "__main__":
             args.ofa_checkpoint_path = "weights/Cifar100/ResNet-OFA/ResNet101OFA_ACC@79.89.pt"
         else:
             args.ofa_checkpoint_path = "exp/kernel_depth2kernel_depth_width/phase1/checkpoint/model_best.pth.tar"
+            # args.ofa_checkpoint_path = "exp_L1norm/kernel_depth2kernel_depth_width/phase2/checkpoint/model_best.pth.tar"
         train_elastic_expand(train, distributed_run_manager, args, validate_func_dict)
     else:
         raise NotImplementedError
