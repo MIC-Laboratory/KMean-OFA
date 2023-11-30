@@ -25,7 +25,7 @@ __all__ = ["OFAResNets"]
 class OFAMobileNetV2(nn.Module):
     
     def __init__(self, 
-    num_classes=10,
+    num_classes=100,
     bn_param=(0.1, 1e-5),
     dropout_rate=0,
     depth_list=[1],
@@ -64,6 +64,7 @@ class OFAMobileNetV2(nn.Module):
                     self.expand_ratio_list,
                     stride,
                     act_func="relu",
+                    expansion=expansion
                     ))
                 in_planes = out_planes
         return nn.Sequential(*layers)
